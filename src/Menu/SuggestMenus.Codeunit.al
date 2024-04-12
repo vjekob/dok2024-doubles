@@ -33,7 +33,7 @@ codeunit 50002 "DEMO Suggest Menus"
         end;
     end;
 
-    local procedure InitializeMenu(var MenuHeader: Record "DEMO Menu Header"; var MenuLine: Record "DEMO Menu Line"; Date: Date)
+    internal procedure InitializeMenu(var MenuHeader: Record "DEMO Menu Header"; var MenuLine: Record "DEMO Menu Line"; Date: Date)
     var
         RestaurantSetup: Record "DEMO Restaurant Setup";
         NoSeriesMgt: Codeunit NoSeriesManagement;
@@ -49,7 +49,7 @@ codeunit 50002 "DEMO Suggest Menus"
         MenuLine."Line No." := 0;
     end;
 
-    local procedure ProcessRecipe(RecipeHeader: Record "DEMO Recipe Header"; MenuHeader: Record "DEMO Menu Header"; var MenuLine: Record "DEMO Menu Line"; StockStalk: Codeunit "DEMO StockStalk Availability"): Boolean
+    internal procedure ProcessRecipe(RecipeHeader: Record "DEMO Recipe Header"; MenuHeader: Record "DEMO Menu Header"; var MenuLine: Record "DEMO Menu Line"; StockStalk: Codeunit "DEMO StockStalk Availability"): Boolean
     var
         RecipeLine: Record "DEMO Recipe Line";
         Item: Record Item;
@@ -77,7 +77,7 @@ codeunit 50002 "DEMO Suggest Menus"
         exit(true);
     end;
 
-    local procedure GetNeededQuantity(Item: Record Item; RecipeLine: Record "DEMO Recipe Line") NeededQty: Decimal
+    internal procedure GetNeededQuantity(Item: Record Item; RecipeLine: Record "DEMO Recipe Line") NeededQty: Decimal
     var
         UoMMgt: Codeunit "Unit of Measure Management";
         QtyPerUoM: Decimal;
@@ -86,7 +86,7 @@ codeunit 50002 "DEMO Suggest Menus"
         NeededQty := UoMMgt.CalcBaseQty(RecipeLine."Item No.", '', RecipeLine."Unit of Measure Code", RecipeLine.Quantity, QtyPerUoM);
     end;
 
-    local procedure GetAvailableQuantity(Item: Record Item; Date: Date) AvailableQty: Decimal
+    internal procedure GetAvailableQuantity(Item: Record Item; Date: Date) AvailableQty: Decimal
     var
         AvailabilityMgt: Codeunit "Item Availability Forms Mgt";
         GrossRequirement, PlannedOrderRcpt, ScheduledRcpt, PlannedOrderReleases, ProjAvailableBalance, ExpectedInventory, QtyAvailable : Decimal;
@@ -95,7 +95,7 @@ codeunit 50002 "DEMO Suggest Menus"
         AvailabilityMgt.CalcAvailQuantities(Item, true, GrossRequirement, PlannedOrderRcpt, ScheduledRcpt, PlannedOrderReleases, ProjAvailableBalance, ExpectedInventory, QtyAvailable, AvailableQty);
     end;
 
-    local procedure CalculateServings(var Servings: Integer; NeededQty: Decimal; AvailableQty: Decimal)
+    internal procedure CalculateServings(var Servings: Integer; NeededQty: Decimal; AvailableQty: Decimal)
     var
         LineServings: Integer;
     begin
@@ -110,7 +110,7 @@ codeunit 50002 "DEMO Suggest Menus"
             Servings := LineServings;
     end;
 
-    local procedure WriteMenuLine(var MenuLine: Record "DEMO Menu Line"; RecipeHeader: Record "DEMO Recipe Header"; Servings: Integer)
+    internal procedure WriteMenuLine(var MenuLine: Record "DEMO Menu Line"; RecipeHeader: Record "DEMO Recipe Header"; Servings: Integer)
     begin
         MenuLine.Init();
         MenuLine."Line No." += 10000;
