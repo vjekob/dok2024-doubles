@@ -1,11 +1,8 @@
 namespace Vjeko.Demos.Restaurant.Test;
+
 using Vjeko.Demos.Restaurant;
-using Microsoft.Inventory.Journal;
-using Microsoft.Inventory.Posting;
-using Microsoft.Inventory.Ledger;
 using Microsoft.Foundation.NoSeries;
 using Microsoft.Inventory.Item;
-using Microsoft.Foundation.UOM;
 using Microsoft.Finance.GeneralLedger.Setup;
 using Microsoft.Finance.VAT.Setup;
 
@@ -79,24 +76,5 @@ codeunit 60001 "DEMO Library - Restaurant"
         RecipeLine.Insert(false);
 
         RecipeLine.Reset();
-    end;
-
-    procedure CreateInventory(RecipeLine: Record "DEMO Recipe Line")
-    begin
-        CreateInventory(RecipeLine, 1);
-    end;
-
-    procedure CreateInventory(RecipeLine: Record "DEMO Recipe Line"; QtyFactor: Decimal);
-    var
-        ItemJnlLine: Record "Item Journal Line";
-        ItemJnlPostLine: Codeunit "Item Jnl.-Post Line";
-    begin
-        ItemJnlLine."Document No." := GetNextGlobalNo();
-        ItemJnlLine.Validate("Posting Date", WorkDate());
-        ItemJnlLine.Validate("Entry Type", "Item Ledger Entry Type"::"Positive Adjmt.");
-        ItemJnlLine.Validate("Item No.", RecipeLine."Item No.");
-        ItemJnlLine.Validate("Unit of Measure Code", RecipeLine."Unit of Measure Code");
-        ItemJnlLine.Validate(Quantity, RecipeLine.Quantity * QtyFactor);
-        ItemJnlPostLine.Run(ItemJnlLine);
     end;
 }
