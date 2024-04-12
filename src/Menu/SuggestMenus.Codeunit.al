@@ -2,7 +2,7 @@ namespace Vjeko.Demos.Restaurant;
 
 using Microsoft.Inventory.Item;
 using Microsoft.Foundation.NoSeries;
-using Microsoft.Foundation.UOM;
+using Vjeko.Demos.Restaurant.BC;
 using Microsoft.Inventory.Availability;
 using Vjeko.Demos.Restaurant.StockStalk;
 
@@ -11,11 +11,12 @@ codeunit 50002 "DEMO Suggest Menus"
     procedure SuggestMenus(Date: Date)
     var
         StockStalk: Codeunit "DEMO StockStalk Availability";
+        UoMMgt: Codeunit "DEMO UoM Mgt.";
     begin
-        SuggestMenus(Date, StockStalk);
+        SuggestMenus(Date, StockStalk, UoMMgt);
     end;
 
-    procedure SuggestMenus(Date: Date; AvailabilityHandler: Interface "DEMO Availability Handler")
+    procedure SuggestMenus(Date: Date; AvailabilityHandler: Interface "DEMO Availability Handler"; UoMMgt: Interface "DEMO Unit of Measure")
     var
         RecipeHeader: Record "DEMO Recipe Header";
         MenuHeader: Record "DEMO Menu Header";
@@ -29,7 +30,7 @@ codeunit 50002 "DEMO Suggest Menus"
 
         if RecipeHeader.FindSet() then
             repeat
-                if ProcessRecipe(RecipeHeader, MenuHeader, MenuLine, AvailabilityHandler) then
+                if ProcessRecipe(RecipeHeader, MenuHeader, MenuLine, AvailabilityHandler, UoMMgt) then
                     HasLines := true;
             until RecipeHeader.Next() = 0;
 
@@ -55,7 +56,7 @@ codeunit 50002 "DEMO Suggest Menus"
         MenuLine."Line No." := 0;
     end;
 
-    internal procedure ProcessRecipe(RecipeHeader: Record "DEMO Recipe Header"; MenuHeader: Record "DEMO Menu Header"; var MenuLine: Record "DEMO Menu Line"; AvailabilityHandler: Interface "DEMO Availability Handler"): Boolean
+    internal procedure ProcessRecipe(RecipeHeader: Record "DEMO Recipe Header"; MenuHeader: Record "DEMO Menu Header"; var MenuLine: Record "DEMO Menu Line"; AvailabilityHandler: Interface "DEMO Availability Handler"; UoMMgt: Interface "DEMO Unit of Measure"): Boolean
     var
         RecipeLine: Record "DEMO Recipe Line";
         Item: Record Item;
@@ -70,7 +71,7 @@ codeunit 50002 "DEMO Suggest Menus"
             if not Item.Get(RecipeLine."Item No.") then
                 exit(false);
 
-            NeededQty := GetNeededQuantity(Item, RecipeLine);
+            NeededQty := GetNeededQuantity(Item, RecipeLine, UoMMgt);
             AvailableQty := GetAvailableQuantity(Item, MenuHeader.Date);
             ExternalQty := AvailabilityHandler.GetAvailableQty(Item."No.");
 
@@ -83,9 +84,8 @@ codeunit 50002 "DEMO Suggest Menus"
         exit(true);
     end;
 
-    internal procedure GetNeededQuantity(Item: Record Item; RecipeLine: Record "DEMO Recipe Line") NeededQty: Decimal
+    internal procedure GetNeededQuantity(Item: Record Item; RecipeLine: Record "DEMO Recipe Line"; UoMMgt: Interface "DEMO Unit of Measure") NeededQty: Decimal
     var
-        UoMMgt: Codeunit "Unit of Measure Management";
         QtyPerUoM: Decimal;
     begin
         QtyPerUoM := UoMMgt.GetQtyPerUnitOfMeasure(Item, RecipeLine."Unit of Measure Code");

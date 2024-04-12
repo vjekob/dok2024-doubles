@@ -105,7 +105,8 @@ codeunit 60002 "DEMO Test Suggest Menus"
         MenuHeader: Record "DEMO Menu Header";
         MenuLine: Record "DEMO Menu Line";
         SuggestMenus: Codeunit "DEMO Suggest Menus";
-        Dummy: Codeunit "DEMO Dummy Avail. Handler";
+        DummyAvailability: Codeunit "DEMO Dummy Avail. Handler";
+        StubUnitOfMeasure: Codeunit "DEMO Stub Unit of Measure";
         Result: Boolean;
     begin
         // [SCENARIO] When there are no recipe lines, ProcessRecipe returns false
@@ -115,7 +116,7 @@ codeunit 60002 "DEMO Test Suggest Menus"
         RecipeLine.DeleteAll();
 
         // [WHEN] Processing a recipe
-        Result := SuggestMenus.ProcessRecipe(RecipeHeader, MenuHeader, MenuLine, Dummy);
+        Result := SuggestMenus.ProcessRecipe(RecipeHeader, MenuHeader, MenuLine, DummyAvailability, StubUnitOfMeasure);
 
         // [THEN] Result must be false
         Assert.IsFalse(Result, 'Processing a recipe with no lines should return false');
@@ -129,7 +130,8 @@ codeunit 60002 "DEMO Test Suggest Menus"
         MenuHeader: Record "DEMO Menu Header";
         MenuLine: Record "DEMO Menu Line";
         SuggestMenus: Codeunit "DEMO Suggest Menus";
-        Dummy: Codeunit "DEMO Dummy Avail. Handler";
+        DummyAvailability: Codeunit "DEMO Dummy Avail. Handler";
+        StubUnitOfMeasure: Codeunit "DEMO Stub Unit of Measure";
         Result: Boolean;
     begin
         // [SCENARIO] When there are no recipe lines, ProcessRecipe returns false
@@ -139,7 +141,7 @@ codeunit 60002 "DEMO Test Suggest Menus"
         RecipeLine.Insert();
 
         // [WHEN] Processing a recipe
-        Result := SuggestMenus.ProcessRecipe(RecipeHeader, MenuHeader, MenuLine, Dummy);
+        Result := SuggestMenus.ProcessRecipe(RecipeHeader, MenuHeader, MenuLine, DummyAvailability, StubUnitOfMeasure);
 
         // [THEN] Result must be false
         Assert.IsFalse(Result, 'Processing a recipe with no lines should return false');
@@ -153,7 +155,8 @@ codeunit 60002 "DEMO Test Suggest Menus"
         MenuHeader: Record "DEMO Menu Header";
         MenuLine: Record "DEMO Menu Line";
         SuggestMenus: Codeunit "DEMO Suggest Menus";
-        Dummy: Codeunit "DEMO Dummy Avail. Handler";
+        DummyAvailability: Codeunit "DEMO Dummy Avail. Handler";
+        StubUnitOfMeasure: Codeunit "DEMO Stub Unit of Measure";
         Result: Boolean;
     begin
         // [SCENARIO] Process recipe returns false if ingredients are not available in minimum quantity
@@ -167,7 +170,7 @@ codeunit 60002 "DEMO Test Suggest Menus"
         LibraryRestaurant.CreateInventory(RecipeLine[1]);
 
         // [WHEN] Processing a recipe
-        Result := SuggestMenus.ProcessRecipe(RecipeHeader, MenuHeader, MenuLine, Dummy);
+        Result := SuggestMenus.ProcessRecipe(RecipeHeader, MenuHeader, MenuLine, DummyAvailability, StubUnitOfMeasure);
 
         // [THEN] Result should be false
         Assert.IsFalse(Result, 'Processing a recipe with no availability should return false');
@@ -181,7 +184,8 @@ codeunit 60002 "DEMO Test Suggest Menus"
         MenuHeader: Record "DEMO Menu Header";
         MenuLine: Record "DEMO Menu Line";
         SuggestMenus: Codeunit "DEMO Suggest Menus";
-        Dummy: Codeunit "DEMO Dummy Avail. Handler";
+        DummyAvailability: Codeunit "DEMO Dummy Avail. Handler";
+        StubUnitOfMeasure: Codeunit "DEMO Stub Unit of Measure";
         Result: Boolean;
     begin
         // [SCENARIO] Process recipe returns true if ingredients are available in minimum quantity
@@ -196,7 +200,7 @@ codeunit 60002 "DEMO Test Suggest Menus"
         LibraryRestaurant.CreateInventory(RecipeLine[2]);
 
         // [WHEN] Processing a recipe
-        Result := SuggestMenus.ProcessRecipe(RecipeHeader, MenuHeader, MenuLine, Dummy);
+        Result := SuggestMenus.ProcessRecipe(RecipeHeader, MenuHeader, MenuLine, DummyAvailability, StubUnitOfMeasure);
 
         // [THEN] Result should be true
         Assert.IsTrue(Result, 'Processing a recipe with availability should return true');
@@ -212,6 +216,7 @@ codeunit 60002 "DEMO Test Suggest Menus"
         ItemUnitOfMeasure: Record "Item Unit of Measure";
         RecipeLine: Record "DEMO Recipe Line";
         SuggestMenus: Codeunit "DEMO Suggest Menus";
+        StubUnitOfMeasure: Codeunit "DEMO Stub Unit of Measure";
         Result: Decimal;
     begin
         // [SCENARIO] GetNeededQuantity returns the quantity needed to satisfy the minimum requirement
@@ -220,7 +225,7 @@ codeunit 60002 "DEMO Test Suggest Menus"
         LibraryInventory.CreateItem(Item);
 
         // [GIVEN] A unit of measure for the item
-        LibraryInventory.CreateItemUnitOfMeasureCode(ItemUnitOfMeasure, Item."No.", Random(100) / 10 + 1);
+        ItemUnitOfMeasure."Qty. per Unit of Measure" := 1;
 
         // [GIVEN] A recipe line
         RecipeLine."Item No." := Item."No.";
@@ -228,7 +233,7 @@ codeunit 60002 "DEMO Test Suggest Menus"
         RecipeLine.Quantity := Random(100) / 10 + 1;
 
         // [WHEN] Getting the needed quantity
-        Result := SuggestMenus.GetNeededQuantity(Item, RecipeLine);
+        Result := SuggestMenus.GetNeededQuantity(Item, RecipeLine, StubUnitOfMeasure);
 
         // [THEN] Result should be the quantity from the recipe line
         Assert.AreEqual(RecipeLine.Quantity * ItemUnitOfMeasure."Qty. per Unit of Measure", Result, 'Needed quantity is not correctly calculated');
@@ -361,7 +366,8 @@ codeunit 60002 "DEMO Test Suggest Menus"
         RecipeLine: Record "DEMO Recipe Line";
         Menu: Record "DEMO Menu Header";
         SuggestMenus: Codeunit "DEMO Suggest Menus";
-        Dummy: Codeunit "DEMO Dummy Avail. Handler";
+        DummyAvailability: Codeunit "DEMO Dummy Avail. Handler";
+        StubUnitOfMeasure: Codeunit "DEMO Stub Unit of Measure";
     begin
         // [SCENARIO] Suggest menus for a given date creates nothing when there is no availability for the ingredients
         Initialize();
@@ -373,7 +379,7 @@ codeunit 60002 "DEMO Test Suggest Menus"
         LibraryRestaurant.CreateRecipeLine(RecipeLine, Recipe."No.");
 
         // [WHEN] Suggesting menus
-        SuggestMenus.SuggestMenus(18760123D, Dummy);
+        SuggestMenus.SuggestMenus(18760123D, DummyAvailability, StubUnitOfMeasure);
 
         // [THEN] A menu was created and flagged with warning
         Menu.FindFirst();
@@ -387,7 +393,8 @@ codeunit 60002 "DEMO Test Suggest Menus"
         RecipeLine: array[3] of Record "DEMO Recipe Line";
         Menu: Record "DEMO Menu Header";
         SuggestMenus: Codeunit "DEMO Suggest Menus";
-        Dummy: Codeunit "DEMO Dummy Avail. Handler";
+        DummyAvailability: Codeunit "DEMO Dummy Avail. Handler";
+        StubUnitOfMeasure: Codeunit "DEMO Stub Unit of Measure";
     begin
         // [SCENARIO] Suggest menus for a given date creates nothing when there is not enough availability for the ingredients
         Initialize();
@@ -406,7 +413,7 @@ codeunit 60002 "DEMO Test Suggest Menus"
         LibraryRestaurant.CreateInventory(RecipeLine[3], 0.5);
 
         // [WHEN] Suggesting menus
-        SuggestMenus.SuggestMenus(18760123D, Dummy);
+        SuggestMenus.SuggestMenus(18760123D, DummyAvailability, StubUnitOfMeasure);
 
         // [THEN] A menu was created and flagged with warning
         Menu.FindFirst();
@@ -421,7 +428,8 @@ codeunit 60002 "DEMO Test Suggest Menus"
         Menu: Record "DEMO Menu Header";
         MenuLine: Record "DEMO Menu Line";
         SuggestMenus: Codeunit "DEMO Suggest Menus";
-        Dummy: Codeunit "DEMO Dummy Avail. Handler";
+        DummyAvailability: Codeunit "DEMO Dummy Avail. Handler";
+        StubUnitOfMeasure: Codeunit "DEMO Stub Unit of Measure";
     begin
         // [SCENARIO] Suggest menus for a given date creates the menus with quantites that correspond to availability of lowest-available ingredient
         Initialize();
@@ -442,7 +450,7 @@ codeunit 60002 "DEMO Test Suggest Menus"
         LibraryRestaurant.CreateInventory(RecipeLine[3], 2.5);
 
         // [WHEN] Suggesting menus
-        SuggestMenus.SuggestMenus(18760123D, Dummy);
+        SuggestMenus.SuggestMenus(18760123D, DummyAvailability, StubUnitOfMeasure);
 
         // [THEN] A menu was created and not flagged with warning
         Menu.FindFirst();
@@ -461,7 +469,8 @@ codeunit 60002 "DEMO Test Suggest Menus"
         Menu: Record "DEMO Menu Header";
         MenuLine: Record "DEMO Menu Line";
         SuggestMenus: Codeunit "DEMO Suggest Menus";
-        Dummy: Codeunit "DEMO Dummy Avail. Handler";
+        DummyAvailability: Codeunit "DEMO Dummy Avail. Handler";
+        StubUnitOfMeasure: Codeunit "DEMO Stub Unit of Measure";
         i, j : Integer;
     begin
         // [SCENARIO] Suggest menus for a given date creates the as many menu lines as there are recipes with availability
@@ -477,7 +486,7 @@ codeunit 60002 "DEMO Test Suggest Menus"
         end;
 
         // [WHEN] Suggesting menus
-        SuggestMenus.SuggestMenus(18760123D, Dummy);
+        SuggestMenus.SuggestMenus(18760123D, DummyAvailability, StubUnitOfMeasure);
 
         // [THEN] A menu was created and not flagged with warning
         Menu.FindFirst();

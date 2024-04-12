@@ -63,7 +63,7 @@ codeunit 60001 "DEMO Library - Restaurant"
         // [GIVEN] An item with a unit of measure
         LibraryInventory.CreateItemWithPostingSetup(Item, GeneralPostingSetup."Gen. Prod. Posting Group", VATPostingSetup."VAT Prod. Posting Group");
         LibraryInventory.CreateItem(Item);
-        LibraryInventory.CreateItemUnitOfMeasureCode(ItemUoM, Item."No.", Random(80) / 10 + 2);
+        LibraryInventory.CreateItemUnitOfMeasureCode(ItemUoM, Item."No.", 1);
 
         // [GIVEN] A recipe line
         RecipeLine.Reset();
