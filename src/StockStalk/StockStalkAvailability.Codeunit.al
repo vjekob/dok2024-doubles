@@ -2,7 +2,7 @@ namespace Vjeko.Demos.Restaurant.StockStalk;
 using Vjeko.Demos.Restaurant;
 using Microsoft.Inventory.Item;
 
-codeunit 50007 "DEMO StockStalk Availability"
+codeunit 50007 "DEMO StockStalk Availability" implements "DEMO Availability Handler"
 {
 
     var

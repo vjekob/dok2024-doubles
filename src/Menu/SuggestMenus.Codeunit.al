@@ -10,20 +10,26 @@ codeunit 50002 "DEMO Suggest Menus"
 {
     procedure SuggestMenus(Date: Date)
     var
+        StockStalk: Codeunit "DEMO StockStalk Availability";
+    begin
+        SuggestMenus(Date, StockStalk);
+    end;
+
+    procedure SuggestMenus(Date: Date; AvailabilityHandler: Interface "DEMO Availability Handler")
+    var
         RecipeHeader: Record "DEMO Recipe Header";
         MenuHeader: Record "DEMO Menu Header";
         MenuLine: Record "DEMO Menu Line";
-        StockStalk: Codeunit "DEMO StockStalk Availability";
         HasLines: Boolean;
     begin
         InitializeMenu(MenuHeader, MenuLine, Date);
 
         RecipeHeader.SetRange(Blocked, false);
-        StockStalk.Initialize(RecipeHeader, Date);
+        AvailabilityHandler.Initialize(RecipeHeader, Date);
 
         if RecipeHeader.FindSet() then
             repeat
-                if ProcessRecipe(RecipeHeader, MenuHeader, MenuLine, StockStalk) then
+                if ProcessRecipe(RecipeHeader, MenuHeader, MenuLine, AvailabilityHandler) then
                     HasLines := true;
             until RecipeHeader.Next() = 0;
 
@@ -49,12 +55,12 @@ codeunit 50002 "DEMO Suggest Menus"
         MenuLine."Line No." := 0;
     end;
 
-    internal procedure ProcessRecipe(RecipeHeader: Record "DEMO Recipe Header"; MenuHeader: Record "DEMO Menu Header"; var MenuLine: Record "DEMO Menu Line"; StockStalk: Codeunit "DEMO StockStalk Availability"): Boolean
+    internal procedure ProcessRecipe(RecipeHeader: Record "DEMO Recipe Header"; MenuHeader: Record "DEMO Menu Header"; var MenuLine: Record "DEMO Menu Line"; AvailabilityHandler: Interface "DEMO Availability Handler"): Boolean
     var
         RecipeLine: Record "DEMO Recipe Line";
         Item: Record Item;
         Servings: Integer;
-        NeededQty, AvailableQty, StockStalkQty : Decimal;
+        NeededQty, AvailableQty, ExternalQty : Decimal;
     begin
         RecipeLine.SetRange("Recipe No.", RecipeHeader."No.");
         if not RecipeLine.FindSet() then
@@ -66,9 +72,9 @@ codeunit 50002 "DEMO Suggest Menus"
 
             NeededQty := GetNeededQuantity(Item, RecipeLine);
             AvailableQty := GetAvailableQuantity(Item, MenuHeader.Date);
-            StockStalkQty := StockStalk.GetAvailableQty(Item."No.");
+            ExternalQty := AvailabilityHandler.GetAvailableQty(Item."No.");
 
-            CalculateServings(Servings, NeededQty, AvailableQty + StockStalkQty);
+            CalculateServings(Servings, NeededQty, AvailableQty + ExternalQty);
             if Servings = 0 then
                 exit(false);
         until RecipeLine.Next() = 0;
