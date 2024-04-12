@@ -2,28 +2,41 @@ namespace Vjeko.Demos.Restaurant;
 
 using Microsoft.Inventory.Item;
 using Microsoft.Foundation.NoSeries;
-using Vjeko.Demos.Restaurant.StockStalk;
 using Microsoft.Foundation.UOM;
 using Microsoft.Inventory.Availability;
+using Vjeko.Demos.Restaurant.StockStalk;
 
 codeunit 50002 "DEMO Suggest Menus"
 {
     procedure SuggestMenus(Date: Date)
     var
-        RestaurantSetup: Record "DEMO Restaurant Setup";
         RecipeHeader: Record "DEMO Recipe Header";
-        RecipeLine: Record "DEMO Recipe Line";
         MenuHeader: Record "DEMO Menu Header";
         MenuLine: Record "DEMO Menu Line";
-        Item: Record Item;
-        UoMMgt: Codeunit "Unit of Measure Management";
-        AvailabilityMgt: Codeunit "Item Availability Forms Mgt";
-        NoSeriesMgt: Codeunit NoSeriesManagement;
         StockStalk: Codeunit "DEMO StockStalk Availability";
-        Available, HasLines : Boolean;
-        Servings, LineServings : Integer;
-        QtyPerUoM, NeededQty : Decimal;
-        GrossRequirement, PlannedOrderRcpt, ScheduledRcpt, PlannedOrderReleases, ProjAvailableBalance, ExpectedInventory, QtyAvailable, AvailableInventory : Decimal;
+        HasLines: Boolean;
+    begin
+        InitializeMenu(MenuHeader, MenuLine, Date);
+
+        RecipeHeader.SetRange(Blocked, false);
+        StockStalk.Initialize(RecipeHeader, Date);
+
+        if RecipeHeader.FindSet() then
+            repeat
+                if ProcessRecipe(RecipeHeader, MenuHeader, MenuLine, StockStalk) then
+                    HasLines := true;
+            until RecipeHeader.Next() = 0;
+
+        if not HasLines then begin
+            MenuHeader.Warning := true;
+            MenuHeader.Modify();
+        end;
+    end;
+
+    local procedure InitializeMenu(var MenuHeader: Record "DEMO Menu Header"; var MenuLine: Record "DEMO Menu Line"; Date: Date)
+    var
+        RestaurantSetup: Record "DEMO Restaurant Setup";
+        NoSeriesMgt: Codeunit NoSeriesManagement;
     begin
         RestaurantSetup.Get();
         RestaurantSetup.TestField("Menu Nos.");
@@ -33,52 +46,77 @@ codeunit 50002 "DEMO Suggest Menus"
         MenuHeader.Insert(false);
 
         MenuLine."Menu No." := MenuHeader."No.";
+        MenuLine."Line No." := 0;
+    end;
 
-        RecipeHeader.SetRange(Blocked, false);
-        StockStalk.Initialize(RecipeHeader, Date);
+    local procedure ProcessRecipe(RecipeHeader: Record "DEMO Recipe Header"; MenuHeader: Record "DEMO Menu Header"; var MenuLine: Record "DEMO Menu Line"; StockStalk: Codeunit "DEMO StockStalk Availability"): Boolean
+    var
+        RecipeLine: Record "DEMO Recipe Line";
+        Item: Record Item;
+        Servings: Integer;
+        NeededQty, AvailableQty, StockStalkQty : Decimal;
+    begin
+        RecipeLine.SetRange("Recipe No.", RecipeHeader."No.");
+        if not RecipeLine.FindSet() then
+            exit(false);
 
-        if RecipeHeader.FindSet() then
-            repeat
-                Servings := 0;
-                RecipeLine.SetRange("Recipe No.", RecipeHeader."No.");
-                Available := RecipeLine.FindSet();
-                if Available then
-                    repeat
-                        if Available then begin
-                            if Item.Get(RecipeLine."Item No.") then begin
-                                QtyPerUoM := UoMMgt.GetQtyPerUnitOfMeasure(Item, RecipeLine."Unit of Measure Code");
-                                NeededQty := UoMMgt.CalcBaseQty(RecipeLine."Item No.", '', RecipeLine."Unit of Measure Code", RecipeLine.Quantity, QtyPerUoM);
-                                AvailabilityMgt.FilterItem(Item, '', '', Date);
-                                AvailabilityMgt.CalcAvailQuantities(Item, true, GrossRequirement, PlannedOrderRcpt, ScheduledRcpt, PlannedOrderReleases, ProjAvailableBalance, ExpectedInventory, QtyAvailable, AvailableInventory);
-                                AvailableInventory := AvailableInventory + StockStalk.GetAvailableQty(Item."No.");
-                                LineServings := Round(AvailableInventory / NeededQty, 1, '<');
-                                if Servings > 0 then begin
-                                    if LineServings < Servings then
-                                        Servings := LineServings;
-                                end else
-                                    Servings := LineServings;
+        repeat
+            if not Item.Get(RecipeLine."Item No.") then
+                exit(false);
 
-                                if Servings = 0 then
-                                    Available := false;
-                            end else
-                                Available := false;
-                        end;
-                    until RecipeLine.Next() = 0;
+            NeededQty := GetNeededQuantity(Item, RecipeLine);
+            AvailableQty := GetAvailableQuantity(Item, MenuHeader.Date);
+            StockStalkQty := StockStalk.GetAvailableQty(Item."No.");
 
-                if Available then begin
-                    HasLines := true;
-                    MenuLine.Init();
-                    MenuLine."Line No." += 10000;
-                    MenuLine."Recipe No." := RecipeHeader."No.";
-                    MenuLine.Description := RecipeHeader.Description;
-                    MenuLine."Available Servings" := Servings;
-                    MenuLine.Insert(false);
-                end;
-            until RecipeHeader.Next() = 0;
+            CalculateServings(Servings, NeededQty, AvailableQty + StockStalkQty);
+            if Servings = 0 then
+                exit(false);
+        until RecipeLine.Next() = 0;
 
-        if not HasLines then begin
-            MenuHeader.Warning := true;
-            MenuHeader.Modify();
+        WriteMenuLine(MenuLine, RecipeHeader, Servings);
+        exit(true);
+    end;
+
+    local procedure GetNeededQuantity(Item: Record Item; RecipeLine: Record "DEMO Recipe Line") NeededQty: Decimal
+    var
+        UoMMgt: Codeunit "Unit of Measure Management";
+        QtyPerUoM: Decimal;
+    begin
+        QtyPerUoM := UoMMgt.GetQtyPerUnitOfMeasure(Item, RecipeLine."Unit of Measure Code");
+        NeededQty := UoMMgt.CalcBaseQty(RecipeLine."Item No.", '', RecipeLine."Unit of Measure Code", RecipeLine.Quantity, QtyPerUoM);
+    end;
+
+    local procedure GetAvailableQuantity(Item: Record Item; Date: Date) AvailableQty: Decimal
+    var
+        AvailabilityMgt: Codeunit "Item Availability Forms Mgt";
+        GrossRequirement, PlannedOrderRcpt, ScheduledRcpt, PlannedOrderReleases, ProjAvailableBalance, ExpectedInventory, QtyAvailable : Decimal;
+    begin
+        AvailabilityMgt.FilterItem(Item, '', '', Date);
+        AvailabilityMgt.CalcAvailQuantities(Item, true, GrossRequirement, PlannedOrderRcpt, ScheduledRcpt, PlannedOrderReleases, ProjAvailableBalance, ExpectedInventory, QtyAvailable, AvailableQty);
+    end;
+
+    local procedure CalculateServings(var Servings: Integer; NeededQty: Decimal; AvailableQty: Decimal)
+    var
+        LineServings: Integer;
+    begin
+        LineServings := Round(AvailableQty / NeededQty, 1, '<');
+
+        if Servings = 0 then begin
+            Servings := LineServings;
+            exit;
         end;
+
+        if LineServings < Servings then
+            Servings := LineServings;
+    end;
+
+    local procedure WriteMenuLine(var MenuLine: Record "DEMO Menu Line"; RecipeHeader: Record "DEMO Recipe Header"; Servings: Integer)
+    begin
+        MenuLine.Init();
+        MenuLine."Line No." += 10000;
+        MenuLine."Recipe No." := RecipeHeader."No.";
+        MenuLine.Description := RecipeHeader.Description;
+        MenuLine."Available Servings" := Servings;
+        MenuLine.Insert(false);
     end;
 }
