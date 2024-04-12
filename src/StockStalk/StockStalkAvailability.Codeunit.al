@@ -8,18 +8,21 @@ codeunit 50007 "DEMO StockStalk Availability" implements "DEMO Availability Hand
     var
         _availability: Record "DEMO StockStalk Avail. Buffer" temporary;
         _stockStalkRequest: Codeunit "DEMO StockStalk Request";
+        _client: Interface "DEMO HttpClient";
         _requestActive: Boolean;
         _processedAvailability: Boolean;
+        _telemetry: Codeunit "DEMO Telemetry";
 
-    procedure Initialize(var Recipe: Record "DEMO Recipe Header"; Date: Date)
+    procedure Initialize(var Recipe: Record "DEMO Recipe Header"; Date: Date; Client: Interface "DEMO HttpClient")
     begin
-        if not _stockStalkRequest.Create(Recipe, Date) then
+        if not _stockStalkRequest.Create(Recipe, Date, _telemetry) then
             exit;
 
-        if not _stockStalkRequest.Send() then
+        if not _stockStalkRequest.Send(Client) then
             exit;
 
         _requestActive := true;
+        _client := Client;
     end;
 
     procedure GetAvailableQty(ItemNo: Code[20]): Decimal
@@ -49,7 +52,7 @@ codeunit 50007 "DEMO StockStalk Availability" implements "DEMO Availability Hand
 
         while _stockStalkRequest.Status() <> "DEMO StockStalk Request Status"::Completed do begin
             _stockStalkRequest.AwaitNextRetry();
-            if not _stockStalkRequest.Check() then
+            if not _stockStalkRequest.Check(_client) then
                 exit;
         end;
 

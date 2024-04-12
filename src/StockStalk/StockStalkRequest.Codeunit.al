@@ -6,6 +6,8 @@ using Microsoft.Inventory.Item;
 codeunit 50006 "DEMO StockStalk Request"
 {
     var
+        _telemetry: Interface "DEMO Telemetry";
+        _telemetryDimensions: Codeunit "DEMO StockStalk Telemetry Dims";
         _items: JsonArray;
         _date: Date;
         _response: JsonArray;
@@ -18,7 +20,7 @@ codeunit 50006 "DEMO StockStalk Request"
         _usable: Boolean;
         _nextRequestAt: DateTime;
 
-    procedure Create(var RecipeHeader: Record "DEMO Recipe Header"; Date: Date): Boolean
+    procedure Create(var RecipeHeader: Record "DEMO Recipe Header"; Date: Date; Telemetry: Interface "DEMO Telemetry"): Boolean
     var
         RestaurantSetup: Record "DEMO Restaurant Setup";
         RecipeHeader2: Record "DEMO Recipe Header";
@@ -32,6 +34,8 @@ codeunit 50006 "DEMO StockStalk Request"
 
         _created := true;
         _date := Date;
+        _telemetry := Telemetry;
+        _telemetry.Initialize(_telemetryDimensions);
 
         if not RestaurantSetup.Get() then
             exit(false);
@@ -50,6 +54,7 @@ codeunit 50006 "DEMO StockStalk Request"
             exit(false);
 
         _id := CreateGuid();
+        _telemetryDimensions.SetId(_id);
 
         repeat
             RecipeLine.SetRange("Recipe No.", RecipeHeader2."No.");
@@ -67,7 +72,7 @@ codeunit 50006 "DEMO StockStalk Request"
                 until RecipeLine.Next() = 0;
         until RecipeHeader2.Next() = 0;
 
-        SendToTelemetry('ST000', 'StockStalk request created', 'Usable', Format(_usable));
+        TElemetry.SendToTelemetry('ST000', 'StockStalk request created', 'Usable', Format(_usable));
         exit(_usable);
     end;
 
@@ -105,7 +110,7 @@ codeunit 50006 "DEMO StockStalk Request"
         exit(_status);
     end;
 
-    procedure Send() Result: Boolean
+    procedure Send(Client: Interface "DEMO HttpClient") Result: Boolean
     var
         Request: HttpRequestMessage;
         ResponseJson: JsonObject;
@@ -118,10 +123,10 @@ codeunit 50006 "DEMO StockStalk Request"
             Error(RequestAlreadySentErr);
 
         PreparePostMessage(Request);
-        Result := ProcessRequest(Request);
+        Result := ProcessRequest(Request, Client, _telemetry);
     end;
 
-    procedure Check() Result: Boolean
+    procedure Check(Client: Interface "DEMO HttpClient") Result: Boolean
     var
         Request: HttpRequestMessage;
         RequestNotSentErr: Label 'StockStalk request is not sent. Please call Send() first.';
@@ -133,11 +138,11 @@ codeunit 50006 "DEMO StockStalk Request"
             "DEMO StockStalk Request Status"::Ready:
                 Error(RequestNotSentErr);
             "DEMO StockStalk Request Status"::Completed:
-                exit(FailSilently('ST010', 'StockStalk request is already completed.'));
+                exit(FailSilently('ST010', 'StockStalk request is already completed.', _telemetry));
         end;
 
         PrepareGetMessage(Request);
-        Result := ProcessRequest(Request);
+        Result := ProcessRequest(Request, Client, _telemetry);
     end;
 
     procedure AwaitNextRetry()
@@ -155,14 +160,14 @@ codeunit 50006 "DEMO StockStalk Request"
         Sleep(SleepTime);
     end;
 
-    local procedure ProcessRequest(Request: HttpRequestMessage): Boolean
+    local procedure ProcessRequest(Request: HttpRequestMessage; Client: Interface "DEMO HttpClient"; Telemetry: Interface "DEMO Telemetry"): Boolean
     var
         ResponseJson: JsonObject;
     begin
-        if not SendAndUpdateState(Request, ResponseJson) then
+        if not SendAndUpdateState(Request, ResponseJson, Client, Telemetry) then
             exit(false);
 
-        ProcessResponse(ResponseJson);
+        ProcessResponse(ResponseJson, _requestId, _response, _status, Telemetry);
         exit(true);
     end;
 
@@ -182,22 +187,21 @@ codeunit 50006 "DEMO StockStalk Request"
             Error(NotUsableErr);
     end;
 
-    local procedure SendAndUpdateState(Request: HttpRequestMessage; var ResponseJson: JsonObject): Boolean
+    internal procedure SendAndUpdateState(Request: HttpRequestMessage; var ResponseJson: JsonObject; Client: Interface "DEMO HttpClient"; Telemetry: Interface "DEMO Telemetry"): Boolean
     var
-        Client: HttpClient;
-        Response: HttpResponseMessage;
+        Response: Interface "DEMO HttpResponse";
     begin
         if not Client.Send(Request, Response) then
-            exit(FailSilently('ST001', 'Failed to send request to StockStalk', 'Error', GetLastErrorText()));
+            exit(FailSilently('ST001', 'Failed to send request to StockStalk', 'Error', GetLastErrorText(), Telemetry));
 
-        SendToTelemetry('ST007', 'StockStalk request sent.');
+        Telemetry.SendToTelemetry('ST007', 'StockStalk request sent.');
 
-        if not ProcessResponseMessage(Response, ResponseJson) then
+        if not ProcessResponseMessage(Response, ResponseJson, _status, Telemetry) then
             exit(false);
 
-        UpdateStatus(ResponseJson);
+        UpdateStatus(ResponseJson, _status, Telemetry);
         if _status <> "DEMO StockStalk Request Status"::Completed then
-            ConfigureAwaitTime(Response);
+            ConfigureAwaitTime(Response, _nextRequestAt);
 
         exit(true);
     end;
@@ -219,7 +223,7 @@ codeunit 50006 "DEMO StockStalk Request"
 
         Request.Content := Content;
 
-        SendToTelemetry('ST006', 'StockStalk POST request prepared.');
+        _telemetry.SendToTelemetry('ST006', 'StockStalk POST request prepared.');
     end;
 
     local procedure PrepareGetMessage(Request: HttpRequestMessage)
@@ -227,7 +231,7 @@ codeunit 50006 "DEMO StockStalk Request"
         InitializeRequest(Request, 'GET', _requestId);
         Authorize(Request);
 
-        SendToTelemetry('ST011', 'StockStalk GET request prepared.');
+        _telemetry.SendToTelemetry('ST011', 'StockStalk GET request prepared.');
     end;
 
     local procedure InitializeRequest(Request: HttpRequestMessage; Method: Text; Path: Text)
@@ -251,7 +255,7 @@ codeunit 50006 "DEMO StockStalk Request"
         Headers.Add('X-Functions-Key', _apiKey);
     end;
 
-    local procedure ProcessResponseMessage(Response: HttpResponseMessage; var ResponseJson: JsonObject): Boolean
+    internal procedure ProcessResponseMessage(Response: Interface "DEMO HttpResponse"; var ResponseJson: JsonObject; var Status: Enum "DEMO StockStalk Request Status"; Telemetry: Interface "DEMO Telemetry"): Boolean
     var
         ResponseText: Text;
         BlockedByEnvironmentErr: Label 'StockStalk request is blocked by environment. Please, check your configuration or contact your administrator.';
@@ -264,9 +268,8 @@ codeunit 50006 "DEMO StockStalk Request"
 
         // Intentionally not checking IsSuccesStatusCode. StockStalk responds with 200, every other 200-range status is unexpected and thus invalid
         if Response.HttpStatusCode = 200 then begin
-            Response.Content.ReadAs(ResponseText);
-            ResponseJson.ReadFrom(ResponseText);
-            SendToTelemetry('ST012', 'StockStalk response received', 'Body', ResponseText);
+            ResponseJson.ReadFrom(Response.GetContent());
+            Telemetry.SendToTelemetry('ST012', 'StockStalk response received', 'Body', ResponseText);
             exit(true);
         end;
 
@@ -278,31 +281,31 @@ codeunit 50006 "DEMO StockStalk Request"
         if not (Response.HttpStatusCode in [400, 404, 410, 429]) then
             Error(UnexpectedStatusCodeErr, Response.HttpStatusCode, Response.ReasonPhrase);
 
-        Response.Content.ReadAs(ResponseText);
+        ResponseText := Response.GetContent();
 
         case Response.HttpStatusCode of
             400: // Bad request (error in syntax or request content)
                 Error(BadRequestErr, ResponseText);
             404: // Not found (StockStalk doesn't recognize the request ID)
                 begin
-                    _status := "DEMO StockStalk Request Status"::Completed;
-                    exit(FailSilently('ST002', 'StockStalk returned 404 Not Found.'));
+                    Status := "DEMO StockStalk Request Status"::Completed;
+                    exit(FailSilently('ST002', 'StockStalk returned 404 Not Found.', Telemetry));
                 end;
             410: // Gone (StockStalk request is expired)
                 begin
-                    _status := "DEMO StockStalk Request Status"::Completed;
-                    exit(FailSilently('ST003', 'StockStalk returned 410 Gone.'));
+                    Status := "DEMO StockStalk Request Status"::Completed;
+                    exit(FailSilently('ST003', 'StockStalk returned 410 Gone.', Telemetry));
                 end;
             429: // Too many requests (sending request before time indicated by StockStalk)
                 begin
-                    ConfigureAwaitTime(Response);
-                    SendToTelemetry('ST004', 'StockStalk returned 429 Too Many Requests. Check your implementation.');
+                    ConfigureAwaitTime(Response, _nextRequestAt);
+                    Telemetry.SendToTelemetry('ST004', 'StockStalk returned 429 Too Many Requests. Check your implementation.');
                     exit(true);
                 end;
         end;
     end;
 
-    local procedure ConfigureAwaitTime(Response: HttpResponseMessage)
+    internal procedure ConfigureAwaitTime(Response: Interface "DEMO HttpResponse"; var NextRequestAt: DateTime)
     var
         Headers: HttpHeaders;
         RetryAfterTexts: array[1] of Text;
@@ -310,22 +313,22 @@ codeunit 50006 "DEMO StockStalk Request"
     begin
         _nextRequestAt := CurrentDateTime() + 1000;
 
-        if not Response.Headers.Contains('Retry-After') then
+        if not Response.GetHeaders().Contains('Retry-After') then
             exit;
-        if not Response.Headers.GetValues('Retry-After', RetryAfterTexts) then
+        if not Response.GetHeaders().GetValues('Retry-After', RetryAfterTexts) then
             exit;
 
         if not Evaluate(RetryAfter, RetryAfterTexts[1]) then
             exit;
 
-        _nextRequestAt := CurrentDateTime() + RetryAfter * 1000;
+        NextRequestAt := CurrentDateTime() + RetryAfter * 1000;
     end;
 
-    local procedure UpdateStatus(ResponseJson: JsonObject)
+    internal procedure UpdateStatus(ResponseJson: JsonObject; var Status: Enum "DEMO StockStalk Request Status"; Telemetry: Interface "DEMO Telemetry")
     var
         Token: JsonToken;
         Value: JsonValue;
-        Status: Text;
+        StatusText: Text;
         NewStatus: Enum "DEMO StockStalk Request Status";
         MissingStatusErr: Label 'Unexpected response from StockStalk: status missing. Please, contact your administrator or switch off StockStalk.';
         UnknownStatusErr: Label 'Unknown status "%1" received from StockStalk. Please, contact your administrator or switch off StockStalk.', Comment = '%1 is the status received from StockStalk.';
@@ -337,8 +340,8 @@ codeunit 50006 "DEMO StockStalk Request"
         if Token.AsValue().IsNull then
             Error(MissingStatusErr);
 
-        Status := Token.AsValue().AsText();
-        case Status of
+        StatusText := Token.AsValue().AsText();
+        case StatusText of
             'created':
                 NewStatus := "DEMO StockStalk Request Status"::Created;
             'pending':
@@ -348,85 +351,42 @@ codeunit 50006 "DEMO StockStalk Request"
             'completed':
                 NewStatus := "DEMO StockStalk Request Status"::Completed;
             else
-                Error(UnknownStatusErr, Status);
+                Error(UnknownStatusErr, StatusText);
         end;
 
-        if NewStatus = _status then
+        if NewStatus = Status then
             exit;
 
-        SendToTelemetry('ST005', 'StockStalk request status updated', 'Status', Status);
-        _status := NewStatus;
+        Telemetry.SendToTelemetry('ST005', 'StockStalk request status updated', 'Status', StatusText);
+        Status := NewStatus;
     end;
 
-    local procedure ProcessResponse(ResponseJson: JsonObject)
+    internal procedure ProcessResponse(ResponseJson: JsonObject; var RequestId: Text; var Response: JsonArray; Process: Interface "DEMO StockStalk Process Response"; Telemetry: Interface "DEMO Telemetry")
     var
-        Token: JsonToken;
-        MissingRequestIdErr: Label 'Unexpected response from StockStalk: request ID missing. Please, contact your administrator or switch off StockStalk.';
-        MissingItemsErr: Label 'Unexpected response from StockStalk: items array missing. Please, contact your administrator or switch off StockStalk.';
+        OldRequestId, NewRequestId : Text;
     begin
-        case _status of
-            "DEMO StockStalk Request Status"::Created:
-                begin
-                    if not ResponseJson.Get('requestId', Token) then
-                        Error(MissingRequestIdErr);
-                    if not Token.IsValue() then
-                        Error(MissingRequestIdErr);
-                    if Token.AsValue().IsNull() then
-                        Error(MissingRequestIdErr);
+        OldRequestId := _requestId;
+        Process.ProcessResponse(ResponseJson, NewRequestId, Response, Telemetry);
+        if NewRequestId = OldRequestId then
+            exit;
 
-                    _requestId := Token.AsValue().AsText();
-
-                    SendToTelemetry('ST008', 'StockStalk request ID received', 'RequestId', _requestId);
-                end;
-            "DEMO StockStalk Request Status"::Completed:
-                begin
-                    if not ResponseJson.Get('items', Token) then
-                        exit;
-                    if not Token.IsArray() then
-                        Error(MissingItemsErr);
-                    _response := Token.AsArray();
-
-                    SendToTelemetry('ST009', 'StockStalk response completed', 'Items', Format(_response.Count));
-                end;
-        end;
+        RequestId := NewRequestId;
+        _telemetryDimensions.SetRequestId(_requestId);
     end;
 
-    local procedure FailSilently(EventId: Text; Msg: Text): Boolean
+    local procedure FailSilently(EventId: Text; Msg: Text; Telemetry: Interface "DEMO Telemetry"): Boolean
     begin
-        SendToTelemetry(EventId, Msg);
+        Telemetry.SendToTelemetry(EventId, Msg);
         exit(false); // Unneeded, but clarifies the intention
     end;
 
-    local procedure FailSilently(EventId: Text; Msg: Text; DimensionKey: Text; DimensionValue: Text): Boolean
+    local procedure FailSilently(EventId: Text; Msg: Text; DimensionKey: Text; DimensionValue: Text; Telemetry: Interface "DEMO Telemetry"): Boolean
     var
         Dimensions: Dictionary of [Text, Text];
     begin
         Dimensions.Add(DimensionKey, DimensionValue);
-        SendToTelemetry(EventId, Msg, Dimensions);
+        Telemetry.SendToTelemetry(EventId, Msg, Dimensions);
         exit(false); // Unneeded, but clarifies the intention
-    end;
-
-    local procedure SendToTelemetry(EventId: Text; Msg: Text)
-    var
-        Dimensions: Dictionary of [Text, Text];
-    begin
-        SendToTelemetry(EventId, Msg, Dimensions);
-    end;
-
-    local procedure SendToTelemetry(EventId: Text; Msg: Text; DimensionKey: Text; DimensionValue: Text)
-    var
-        Dimensions: Dictionary of [Text, Text];
-    begin
-        Dimensions.Add(DimensionKey, DimensionValue);
-        SendToTelemetry(EventId, Msg, Dimensions);
-    end;
-
-    local procedure SendToTelemetry(EventId: Text; Msg: Text; Dimensions: Dictionary of [Text, Text])
-    begin
-        Dimensions.Add('StockStalkRequestId', _requestId);
-        Dimensions.Add('Id', Format(_id));
-        Session.LogMessage(EventId, Msg, Verbosity::Normal, DataClassification::SystemMetadata,
-            TelemetryScope::ExtensionPublisher, Dimensions);
     end;
 
     local procedure UpdateValueFromToken(Token: JsonToken; Field: Text; var Value: Text)

@@ -3,7 +3,7 @@ using Vjeko.Demos.Restaurant;
 
 codeunit 60004 "DEMO Dummy Avail. Handler" implements "DEMO Availability Handler"
 {
-    procedure Initialize(var Recipe: Record "DEMO Recipe Header"; Date: Date)
+    procedure Initialize(var Recipe: Record "DEMO Recipe Header"; Date: Date; Client: Interface "DEMO HttpClient");
     begin
         // Does nothing
     end;

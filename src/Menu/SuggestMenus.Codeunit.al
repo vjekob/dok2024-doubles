@@ -22,12 +22,13 @@ codeunit 50002 "DEMO Suggest Menus" implements "DEMO Suggest Menus"
         RecipeHeader: Record "DEMO Recipe Header";
         MenuHeader: Record "DEMO Menu Header";
         MenuLine: Record "DEMO Menu Line";
+        Client: Codeunit "DEMO HttpClient";
         HasLines: Boolean;
     begin
         SuggestMenus.InitializeMenu(MenuHeader, MenuLine, Date, NoSeriesMgt, SuggestMenus);
 
         RecipeHeader.SetRange(Blocked, false);
-        AvailabilityHandler.Initialize(RecipeHeader, Date);
+        AvailabilityHandler.Initialize(RecipeHeader, Date, Client);
 
         if RecipeHeader.FindSet() then
             repeat
