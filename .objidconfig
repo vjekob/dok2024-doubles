@@ -1,0 +1,40 @@
+{
+  "idRanges": [
+    {
+      "from": 50000,
+      "to": 99999,
+      "description": "From 50000 to 99999"
+    }
+  ],
+  "objectRanges": {
+    "table": [
+      {
+        "from": 50000,
+        "to": 59999,
+        "description": "App tables"
+      },
+      {
+        "from": 60000,
+        "to": 69999,
+        "description": "Test tables"
+      },
+      {
+        "from": 90000,
+        "to": 99999,
+        "description": "Temporary tables"
+      }
+    ],
+    "codeunit": [
+      {
+        "from": 50000,
+        "to": 59999,
+        "description": "App objects"
+      },
+      {
+        "from": 60000,
+        "to": 69999,
+        "description": "Test objects"
+      }
+    ]
+  }
+}

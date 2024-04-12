@@ -1,0 +1,30 @@
+@url = https://stockstalk.azurewebsites.net/api
+@key = JF4Rlt_Rf3wLJ7EojF41SV6Us9t7SuSbAVfg9hkOpcYGAzFupMoMtg==
+
+### Create request (POST)
+# @name create
+
+post {{url}}/v1/request
+Content-Type: application/json
+X-Functions-Key: {{key}}
+
+[
+    {
+        "itemId": "demo01",
+        "uom": "ml",
+        "quantity": 5
+    },
+    {
+        "itemId": "demo02",
+        "uom": "g",
+        "quantity": 3
+    }
+]
+
+###
+@requestId = {{create.response.body.$.requestId}}
+
+### Query request (GET)
+
+get {{url}}/v1/request/{{requestId}}
+X-Functions-Key: {{key}}
